@@ -1,0 +1,75 @@
+Metadata-Version: 2.4
+Name: reconforge-cli
+Version: 0.1.0
+Summary: Modular pentest recon pipeline CLI for authorized testing
+Author: ReconForge Contributors
+License: MIT
+Keywords: recon,security,cli
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Environment :: Console
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
+# ReconForge CLI — Modular Pentest Recon Pipeline
+
+A CLI-based reconnaissance toolkit for **authorized security testing**.
+
+> ⚠️ Authorized use only. Run this tool only on systems you own or where you have explicit written permission.
+
+## Current status
+
+This repository now contains a working Python CLI with the following commands:
+
+- `subdomains`: generates a built-in common subdomain list and resolves DNS
+- `alive`: probes resolved hosts for HTTP/HTTPS reachability
+- `ports`: scans a small top-port set
+- `report`: writes a Markdown + JSON summary
+- `run`: executes `subdomains -> alive -> ports -> report`
+
+## Install
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+## Usage
+
+```bash
+reconforge run --domain example.com --out runs/example.com
+```
+
+Or modular:
+
+```bash
+reconforge subdomains --domain example.com --out runs/example.com
+reconforge alive --input runs/example.com/subdomains/resolved.txt --out runs/example.com
+reconforge ports --input runs/example.com/alive/alive.txt --out runs/example.com
+reconforge report --input runs/example.com
+```
+
+## Output structure
+
+```text
+runs/example.com/
+├── scope/
+├── subdomains/
+│   ├── all.txt
+│   ├── resolved.txt
+│   ├── failed.txt
+│   └── sources.json
+├── alive/
+│   ├── alive.txt
+│   └── alive.json
+├── ports/
+│   ├── services.txt
+│   └── ports.json
+├── web/
+│   └── titles.txt
+├── report/
+│   ├── report.md
+│   └── summary.json
+└── logs/
+```
