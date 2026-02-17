@@ -1,218 +1,96 @@
 # ReconForge CLI — Modular Pentest Recon Pipeline
 
-A **CLI-based reconnaissance toolkit** designed for **authorized security testing**.  
-ReconForge turns a target domain (or scope file) into a clean recon workspace: **subdomains → live hosts → ports → fingerprinting → optional screenshots/endpoints → report**.
+A CLI-based reconnaissance toolkit for **authorized security testing**.
 
-> ⚠️ **Authorized use only.** Run this tool only on systems you own or where you have explicit written permission.
+> ⚠️ Authorized use only. Run this tool only on systems you own or where you have explicit written permission.
 
----
-
-## Why this exists
-
-Pentesting recon often becomes messy: outputs spread across tools, inconsistent formats, and hard-to-repeat workflows.  
-ReconForge focuses on:
-
-- **Repeatable** recon runs (consistent folder structure)
-- **Modular** steps (run everything or just what you need)
-- **Pentest-friendly outputs** (TXT + JSON + CSV)
-- **Report-ready summaries** (Markdown report + JSON summary)
-
----
-
-## Features (Planned / In Progress)
+## What is implemented now
 
 ### Core
-- ✅ Target intake: domain, CIDR, list file, scope file
-- ✅ Subdomain collection (pluggable sources/modules)
+- ✅ Target intake: domain / CIDR / list file / scope file (`targets`, `run`)
+- ✅ Subdomain collection with pluggable sources (`common`, `wordlist`)
 - ✅ DNS resolve + dedup
-- ✅ Live host probing (HTTP/HTTPS) + titles/status codes
-- ✅ Port scanning (top ports / full scan, rate-limited)
-- ✅ Service parsing + inventory summary
-- ✅ Markdown report generation
+- ✅ Live host probing (HTTP/HTTPS) + titles/status
+- ✅ Port scanning (top or full) + simple rate control
+- ✅ Service parsing + inventory summary (`ports/inventory.json`)
+- ✅ Markdown + JSON report generation
 
-### Optional modules
-- ⏳ Tech fingerprint hints (headers, simple signatures)
-- ⏳ Endpoint discovery (crawl + URL extraction)
-- ⏳ Screenshots (integrate with `gowitness` / `aquatone` if installed)
-- ⏳ Caching (avoid re-pulling passive sources)
-- ⏳ Resume support (continue from partial runs)
+### Optional
+- ✅ Endpoint directory discovery with wordlist (`webdirs`)
+- ⏳ Tech fingerprint hints
+- ⏳ Endpoint crawl + URL extraction
+- ⏳ Screenshots integration (`gowitness`/`aquatone`)
+- ⏳ Caching
+- ⏳ Resume support
 
-> Roadmap is tracked in **Issues** and **Milestones**.
-
----
-
-## Quick Start (Planned)
-
-### Install (editable/dev)
-```bash
-git clone https://github.com/<your-username>/reconforge-cli.git
-cd reconforge-cli
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### Run full recon
-```bash
-reconforge run --domain example.com --out runs/example.com
-```
-
-### Run only parts
-```bash
-reconforge subdomains --domain example.com --out runs/example.com
-reconforge alive --input runs/example.com/subdomains/resolved.txt --out runs/example.com
-reconforge ports --input runs/example.com/alive/alive.txt --top 1000 --rate 200 --out runs/example.com
-reconforge report --input runs/example.com --format md
-```
-
----
-
-## CLI Commands (Design)
-
-### `run` (pipeline)
-Runs selected modules in order.
+## Setup
 
 ```bash
-reconforge run --domain example.com --out runs/example.com --modules subdomains,alive,ports,report
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e . --no-build-isolation
+python3 -m reconforge --help
 ```
 
-### `subdomains`
-Collect + merge subdomains from enabled sources.
+## Commands
+
+- `targets` build `scope/in_scope.txt` and `scope/out_of_scope.txt`
+- `subdomains` collect/resolve subdomains
+- `alive` probe HTTP/HTTPS and print terminal output
+- `ports` scan top/full ports and output inventory
+- `webdirs` brute-force directories from a wordlist
+- `report` generate and print Markdown report
+- `run` full pipeline
+
+## Examples
+
+### 1) Build scope inputs
 
 ```bash
-reconforge subdomains --domain example.com --out runs/example.com
+python3 -m reconforge targets --domain example.com --cidr 10.10.10.0/30 --list targets.txt --scope scope.txt --out runs/example
 ```
 
-### `alive`
-Probe HTTP/HTTPS to identify live web hosts.
+`scope.txt` format supports:
+- `+value` include
+- `-value` exclude
+- `value` include
+
+### 2) Subdomains with pluggable sources
 
 ```bash
-reconforge alive --input subdomains.txt --out runs/example.com --threads 50 --timeout 5
+python3 -m reconforge subdomains \
+  --domain example.com \
+  --sources common,wordlist \
+  --wordlist wordlists/subs.txt \
+  --out runs/example
 ```
 
-### `ports`
-Scan ports (top ports by default). Full scans are opt-in and rate-limited.
+### 3) Alive + ports + webdirs
 
 ```bash
-reconforge ports --input runs/example.com/alive/alive.txt --top 1000 --rate 200 --out runs/example.com
+python3 -m reconforge alive --input runs/example/subdomains/resolved.txt --out runs/example
+python3 -m reconforge ports --input runs/example/alive/alive.txt --out runs/example --top 10 --rate 200
+python3 -m reconforge webdirs --input runs/example/alive/alive.txt --wordlist wordlists/common.txt --out runs/example
+python3 -m reconforge report --input runs/example
 ```
 
-### `report`
-Generate a Markdown recon report.
+### 4) One-shot run
 
 ```bash
-reconforge report --input runs/example.com --format md
+python3 -m reconforge run \
+  --domain example.com \
+  --sources common,wordlist \
+  --sub-wordlist wordlists/subs.txt \
+  --web-wordlist wordlists/common.txt \
+  --top 10 --rate 200 \
+  --out runs/example
 ```
 
----
+## Output files
 
-## Output Structure
-
-Each run creates a predictable recon workspace:
-
-```
-runs/example.com/
-├── scope/
-│   ├── in_scope.txt
-│   └── out_of_scope.txt
-├── subdomains/
-│   ├── all.txt
-│   ├── sources.json
-│   ├── resolved.txt
-│   └── failed.txt
-├── alive/
-│   ├── alive.txt
-│   ├── alive.json
-│   └── tech.csv
-├── ports/
-│   ├── ports.json
-│   ├── services.txt
-│   └── nmap/
-│       ├── scan.xml
-│       ├── scan.gnmap
-│       └── scan.nmap
-├── web/
-│   ├── titles.txt
-│   ├── endpoints.txt
-│   ├── params.txt
-│   └── screenshots/   # optional
-├── report/
-│   ├── report.md
-│   └── summary.json
-└── logs/
-    └── recon.log
-```
-
----
-
-## Configuration
-
-ReconForge supports config via:
-- CLI flags (highest priority)
-- `reconforge.toml` (recommended)
-- Environment variables (API keys for passive sources)
-
-Example `reconforge.toml` (planned):
-
-```toml
-[general]
-threads = 50
-timeout = 5
-rate = 200
-
-[subdomains]
-sources = ["crtsh", "passive_dns", "wordlist"]  # modules you enable
-wordlist = "wordlists/subs.txt"
-
-[ports]
-top = 1000
-full_scan = false
-```
-
----
-
-## Dependencies (Planned)
-
-Python libraries:
-- `typer` (CLI)
-- `rich` (pretty terminal output)
-- `httpx` (fast probing)
-- `dnspython` (DNS)
-- `pydantic` (structured results)
-- `jinja2` (report templates)
-
-Optional external tools (auto-detected):
-- `nmap` (recommended for port scan output)
-- `gowitness` or `aquatone` (screenshots)
-
----
-
-## Security & Ethics
-
-This tool is built for **professional recon workflows** and **authorized testing**.
-
-✅ OK:
-- scanning your own assets
-- scanning assets with explicit permission (contract/scope)
-- lab environments and CTF targets
-
-❌ Not OK:
-- scanning random public targets “for practice”
-- stealthy abuse or evasion guidance
-- any activity without consent
-
----
-
-## Contributing
-
-PRs welcome (especially for):
-- new passive subdomain source modules
-- improved parsers for port scan output
-- better report templates
-- unit tests + CI
-
----
-
-## Credits
-
-Inspired by real-world recon toolchains and the need for **repeatable outputs** in pentest engagements.
+- `scope/in_scope.txt`, `scope/out_of_scope.txt`
+- `subdomains/all.txt`, `resolved.txt`, `failed.txt`, `sources.json`
+- `alive/alive.txt`, `alive/alive.json`, `web/titles.txt`
+- `ports/services.txt`, `ports/ports.json`, `ports/inventory.json`
+- `web/endpoints.txt`, `web/directories.json`
+- `report/report.md`, `report/summary.json`
